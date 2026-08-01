@@ -1,8 +1,14 @@
 import type { Metadata } from 'next'
+import { auth } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import { InventoryClient } from '@/components/inventory/InventoryClient'
 
 export const metadata: Metadata = { title: 'Inventory — POS MVP' }
 
-export default function InventoryPage() {
+export default async function InventoryPage() {
+  const session = await auth()
+  if (!session) redirect('/login')
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -10,17 +16,10 @@ export default function InventoryPage() {
           Inventory
         </h1>
         <p className="text-sm mt-1" style={{ color: 'var(--color-muted)' }}>
-          Stock management and adjustments
+          Stock levels and adjustments
         </p>
       </div>
-      <div
-        className="rounded-xl border-2 border-dashed flex items-center justify-center h-80"
-        style={{ borderColor: 'var(--color-border)' }}
-      >
-        <p style={{ color: 'var(--color-muted)' }} className="text-sm">
-          Inventory — coming in T-09
-        </p>
-      </div>
+      <InventoryClient userRole={session.user.role as 'ADMIN' | 'CASHIER'} />
     </div>
   )
 }
