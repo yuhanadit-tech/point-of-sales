@@ -7,51 +7,51 @@
 ```
 /login
   └─► /dashboard
-        ├─► /pos              ← layar kasir utama (default setelah login)
-        ├─► /orders           ← riwayat & detail transaksi
-        ├─► /products         ← CRUD produk
-        ├─► /inventory        ← kelola stok
-        └─► /reports          ← ringkasan penjualan
+        ├─► /pos              ← main cashier screen (default after login)
+        ├─► /orders           ← transaction history & detail
+        ├─► /products         ← product CRUD
+        ├─► /inventory        ← stock management
+        └─► /reports          ← sales summary
 ```
 
-### 1.2 User Journey — Kasir (Core Flow)
+### 1.2 User Journey — Cashier (Core Flow)
 
 ```
-[Buka /pos]
+[Open /pos]
   │
-  ├─ Lihat grid produk (foto, nama, harga)
+  ├─ View product grid (photo, name, price)
   │
-  ├─ Klik produk → masuk Cart Panel (kanan)
-  │    ├─ Ubah quantity
-  │    └─ Hapus item
+  ├─ Click product → added to Cart Panel (right side)
+  │    ├─ Adjust quantity
+  │    └─ Remove item
   │
-  ├─ Klik [Bayar]
-  │    └─ Modal Pembayaran
-  │         ├─ Pilih metode: Tunai / Kartu / QRIS
-  │         ├─ Input nominal (tunai → hitung kembalian)
-  │         └─ Klik [Konfirmasi]
+  ├─ Click [Pay]
+  │    └─ Payment Modal
+  │         ├─ Select method: Cash / Card / QRIS
+  │         ├─ Enter amount (cash → calculates change)
+  │         └─ Click [Confirm]
   │
-  └─ Tampil Struk (print preview)
-       ├─ Klik [Cetak]
-       └─ Klik [Transaksi Baru] → kembali ke /pos
+  └─ Show Receipt (print preview)
+       ├─ Click [Print]
+       └─ Click [New Transaction] → back to /pos
 ```
 
-### 1.3 User Journey — Admin / Manajer
+### 1.3 User Journey — Admin / Manager
 
 ```
 [/products]
-  ├─ Tambah produk (nama, kategori, harga, stok, foto)
-  ├─ Edit produk
-  └─ Nonaktifkan produk (soft delete)
+  ├─ Add product (name, category, price, stock, photo)
+  ├─ Edit product
+  └─ Deactivate product (soft delete)
 
 [/inventory]
-  ├─ Lihat stok semua produk
-  ├─ Stok masuk (purchase order manual)
-  └─ Alert produk hampir habis (stok ≤ threshold)
+  ├─ View stock for all products
+  ├─ Adjust stock (restock or manual correction)
+  └─ Low stock alert (stock ≤ threshold)
 
 [/reports]
-  ├─ Ringkasan hari ini (total transaksi, omset, item terjual)
-  ├─ Grafik penjualan 7 / 30 hari
+  ├─ Today's summary (total transactions, revenue, items sold)
+  ├─ Sales chart for 7 / 30 days
   └─ Export CSV
 ```
 
@@ -59,40 +59,40 @@
 
 ## 2. Design System
 
-### 2.1 Warna
+### 2.1 Colors
 
-| Token | Hex | Penggunaan |
+| Token | Hex | Usage |
 |---|---|---|
-| `primary` | `#2563EB` | CTA button, link aktif |
+| `primary` | `#2563EB` | CTA button, active link |
 | `primary-hover` | `#1D4ED8` | Hover state |
-| `success` | `#16A34A` | Status lunas, stok aman |
-| `warning` | `#CA8A04` | Stok rendah, perlu perhatian |
-| `danger` | `#DC2626` | Error, hapus, stok habis |
-| `neutral-50` | `#F9FAFB` | Background halaman |
-| `neutral-100` | `#F3F4F6` | Surface card |
+| `success` | `#16A34A` | Paid status, safe stock level |
+| `warning` | `#CA8A04` | Low stock, needs attention |
+| `danger` | `#DC2626` | Error, delete, out of stock |
+| `neutral-50` | `#F9FAFB` | Page background |
+| `neutral-100` | `#F3F4F6` | Card surface |
 | `neutral-700` | `#374151` | Body text |
 | `neutral-900` | `#111827` | Heading |
 
-### 2.2 Tipografi
+### 2.2 Typography
 
-| Peran | Font | Size | Weight |
+| Role | Font | Size | Weight |
 |---|---|---|---|
 | Display / Heading | Inter | 24px / 20px / 18px | 700 / 600 |
 | Body | Inter | 15px | 400 |
 | Label / Caption | Inter | 13px | 500 |
-| Monospace (kode/SKU) | ui-monospace, SFMono-Regular, Consolas, monospace | 13px | 400 |
+| Monospace (code / SKU) | ui-monospace, SFMono-Regular, Consolas, monospace | 13px | 400 |
 
 ### 2.3 Spacing & Grid
 
 - Base unit: **4px**
-- Komponen padding: `p-4` (16px) / `p-6` (24px)
-- Gap antar komponen: `gap-4` atau `gap-6`
-- Sidebar lebar: **240px** (collapsed: **64px**)
-- Konten area: fluid, max-width **1280px**
+- Component padding: `p-4` (16px) / `p-6` (24px)
+- Gap between components: `gap-4` or `gap-6`
+- Sidebar width: **240px** (collapsed: **64px**)
+- Content area: fluid, max-width **1280px**
 
 ### 2.4 Radius & Shadow
 
-| Token | Nilai |
+| Token | Value |
 |---|---|
 | `rounded` | 6px |
 | `rounded-lg` | 10px |
@@ -102,172 +102,171 @@
 
 ---
 
-## 3. Komponen Utama
+## 3. Core Components
 
 ### 3.1 ProductCard
 ```
 ┌────────────────────┐
-│  [foto produk]     │
-│  Nama Produk       │
-│  Kategori          │
-│  Rp 25.000         │
-│  Stok: 48          │
+│  [product photo]   │
+│  Product Name      │
+│  Category          │
+│  Rp 25,000         │
+│  Stock: 48         │
 └────────────────────┘
 ```
 - Props: `product: Product`, `onAdd: () => void`
-- State: loading saat tambah ke cart
-- Disabled + opak saat `stok === 0`
+- State: loading when added to cart
+- Disabled + faded when `stock === 0`
 
 ### 3.2 CartPanel
 ```
 ┌──────────────────────────────────┐
-│ 🛒 Keranjang               (3)   │
+│  Cart                      (3)   │
 ├──────────────────────────────────┤
-│ Kopi Susu        x2   Rp 50.000  │
-│ Croissant        x1   Rp 22.000  │
+│  Iced Latte       x2  Rp 50,000  │
+│  Croissant        x1  Rp 22,000  │
 ├──────────────────────────────────┤
-│ Subtotal              Rp 72.000  │
-│ Total                 Rp 72.000  │
+│  Total                Rp 72,000  │
 ├──────────────────────────────────┤
-│      [Bayar Sekarang]            │
+│         [Pay Now]                │
 └──────────────────────────────────┘
 ```
 **Desktop (`md` ≥ 768px):**
-- Sticky di sisi kanan layar (min-height: 100vh, width: 360px)
-- Animasi slide-in saat item ditambah
+- Sticky on the right side of the screen (min-height: 100vh, width: 360px)
+- Slide-in animation when item is added
 
 **Mobile (`< md`):**
-- Bottom drawer / slide-up sheet (height: 60% layar saat dibuka)
-- Floating cart button (bottom-right, fixed) menampilkan jumlah item
-- Tap button → drawer slides up dari bawah
-- Swipe down atau tap backdrop → tutup drawer
+- Bottom drawer / slide-up sheet (height: 60% of screen when open)
+- Floating cart button (bottom-right, fixed) showing item count badge
+- Tap button → drawer slides up from bottom
+- Swipe down or tap backdrop → close drawer
 
 ### 3.3 PaymentModal
 - Overlay dialog (modal)
-- Tab: **Tunai | Kartu | QRIS**
-- Tunai: input nominal → tampil kembalian realtime
-- QRIS: tampil QR placeholder (integrasi payment gateway di luar MVP)
-- Tombol Konfirmasi disabled sampai nominal valid
+- Tabs: **Cash | Card | QRIS**
+- Cash: enter amount → shows change in real time
+- QRIS: display QR placeholder (payment gateway integration out of MVP scope)
+- Confirm button disabled until amount is valid
 
 ### 3.4 Receipt
 - A4 / 58mm thermal layout toggle
-- Info: nama toko, alamat, tanggal, nomor struk, kasir
-- Tabel item: nama, qty, harga satuan, subtotal
-- Total, metode bayar, kembalian
-- Footer: "Terima kasih telah berbelanja!"
+- Info: store name, address, date, receipt number, cashier
+- Item table: name, qty, unit price, subtotal
+- Total, payment method, change
+- Footer: "Thank you for your purchase!"
 
 ### 3.5 DataTable (shared)
-- Kolom sortable
-- Pagination (10/25/50 per halaman)
-- Filter bar (search + dropdown kategori/status)
+- Sortable columns
+- Pagination (10 / 25 / 50 rows per page)
+- Filter bar (search + category / status dropdown)
 - Export CSV button
 
 ### 3.6 StockBadge
-- `> threshold` → hijau `Aman`
-- `≤ threshold` → kuning `Hampir Habis`
-- `0` → merah `Habis`
+- `> threshold` → green `In Stock`
+- `≤ threshold` → yellow `Low Stock`
+- `0` → red `Out of Stock`
 
 ---
 
-## 4. Halaman Detail
+## 4. Page Detail
 
-### 4.1 `/pos` — Layar Kasir
+### 4.1 `/pos` — Cashier Screen
 ```
 ┌────────────────────────────────────────────────────────────┐
-│ Topbar: Logo | Nama Kasir | Shift | Logout                 │
+│ Topbar: Logo | Cashier Name | Shift | Logout               │
 ├──────────────────────────────────────┬─────────────────────┤
-│  Search bar + filter kategori        │                     │
+│  Search bar + category filter        │                     │
 │                                      │   Cart Panel        │
 │  ┌──────┐ ┌──────┐ ┌──────┐          │   (sticky)          │
 │  │ Prod │ │ Prod │ │ Prod │  ...      │                     │
 │  └──────┘ └──────┘ └──────┘          │                     │
 │  ┌──────┐ ┌──────┐ ┌──────┐          │                     │
-│  │ Prod │ │ Prod │ │ Prod │  ...      │   [Bayar]           │
+│  │ Prod │ │ Prod │ │ Prod │  ...      │   [Pay Now]         │
 │  └──────┘ └──────┘ └──────┘          │                     │
 └──────────────────────────────────────┴─────────────────────┘
 ```
-- Grid: 3 kolom (desktop), 2 kolom (tablet), 1 kolom (mobile)
-- Infinite scroll atau pagination (25 produk per halaman)
+- Grid: 3 columns (desktop), 2 columns (tablet), 1 column (mobile)
+- Infinite scroll or pagination (25 products per page)
 
-### 4.2 `/products`
-- Toolbar: [+ Tambah Produk] [Search] [Filter Kategori]
-- Tabel: Foto | Nama | SKU | Kategori | Harga | Stok | Status | Aksi
-- Form tambah/edit: drawer / dialog
+### 4.2 `/products` — Product Management
+- Toolbar: [+ Add Product] [Search] [Filter Category]
+- Table: Photo | Name | SKU | Category | Price | Stock | Status | Actions
+- Add / edit form: drawer / dialog
 
-### 4.3 `/orders` — Riwayat Transaksi
-- Tabel: No. Order | Tanggal | Kasir | Total | Status | Aksi
-- Status badge: `COMPLETED` (hijau), `VOIDED` (merah)
-- Aksi (per row):
-  - [Detail] → sheet/modal showing order items + payment info
-  - [Cetak Ulang] → re-open Receipt component
+### 4.3 `/orders` — Transaction History
+- Table: Order No. | Date | Cashier | Total | Status | Actions
+- Status badge: `COMPLETED` (green), `VOIDED` (red)
+- Actions (per row):
+  - [Detail] → sheet / modal showing order items + payment info
+  - [Reprint] → re-open Receipt component for printing
   - [Void] (admin only) → ConfirmDialog → PATCH /api/orders/:id `{ status: "VOIDED" }`
-- Void order row: opacity-50 + red badge "Dibatalkan"
+- Voided order row: opacity-50 + red badge "Cancelled"
 
-### 4.4 `/inventory` — Manajemen Stok
-- Tabel: Foto | Nama | SKU | Stok | Alert | Aksi
-- Alert: StockBadge (aman/hampir habis/habis)
-- Aksi:
-  - [Sesuaikan Stok] → modal dengan input ±qty + reason → POST /api/inventory/adjust
+### 4.4 `/inventory` — Stock Management
+- Table: Photo | Name | SKU | Stock | Alert | Actions
+- Alert: StockBadge (in stock / low stock / out of stock)
+- Actions:
+  - [Adjust Stock] → modal with ±qty input + reason → POST /api/inventory/adjust
 
-### 4.5 `/reports`
-- KPI cards: Transaksi Hari Ini, Omset, Produk Terjual, Rata-rata Order
-- Bar chart: penjualan per hari (7/30 hari) — recharts / nivo
-- Tabel 10 produk terlaris
+### 4.5 `/reports` — Sales Reports
+- KPI cards: Today's Transactions, Revenue, Items Sold, Average Order Value
+- Bar chart: daily sales (7 / 30 days) — recharts / nivo
+- Table of top 10 best-selling products
 
 ---
 
 ## 4.6 Empty States
 
-| View | Kondisi | Icon | Copy | CTA |
+| View | Condition | Icon | Copy | CTA |
 |---|---|---|---|---|
-| Product Grid | Belum ada produk | 📦 | "Belum ada produk. Tambahkan produk pertama untuk mulai berjualan." | [+ Tambah Produk] |
-| Cart | Keranjang kosong | 🛒 | "Keranjang kosong. Pilih produk untuk memulai transaksi." | — |
-| Orders | Belum ada transaksi | 📝 | "Belum ada transaksi hari ini." | — |
-| Reports | Data kosong | 📊 | "Belum ada data untuk ditampilkan. Lakukan transaksi pertama." | — |
-| Inventory (stok habis) | Filter = habis, 0 result | ✅ | "Semua produk memiliki stok!" | — |
+| Product Grid | No products yet | 📦 | "No products yet. Add your first product to start selling." | [+ Add Product] |
+| Cart | Cart is empty | 🛒 | "Cart is empty. Select a product to start a transaction." | — |
+| Orders | No transactions | 📝 | "No transactions today." | — |
+| Reports | No data | 📊 | "No data to display yet. Complete your first transaction." | — |
+| Inventory (out of stock) | Filter = out, 0 results | ✅ | "All products are in stock!" | — |
 
 ### 4.7 Loading / Skeleton States
 
-| Komponen | Pattern |
+| Component | Pattern |
 |---|---|
 | ProductGrid | 6 × ProductCard skeleton (gray placeholder + pulse animation) |
-| DataTable | 10 × row shimmer (3 kolom utama gray bars) |
+| DataTable | 10 × row shimmer (3 main columns as gray bars) |
 | KPI Card | Value → shimmer bar (60% width) |
-| Bar Chart | Gray placeholder bars dengan pulse |
-| Cart | Line-item shimmer saat item di-add (200ms) |
+| Bar Chart | Gray placeholder bars with pulse |
+| Cart | Line-item shimmer when item is being added (200ms) |
 
 ---
 
 ## 5. Technical Design Decisions (Revised)
 
 ### 5.1 Server Components vs Client Components
-| Komponen | Tipe | Alasan |
+| Component | Type | Reason |
 |---|---|---|
-| Halaman `/orders`, `/products` | Server Component | Data fetching langsung tanpa `useEffect` |
-| `Cart`, `PaymentModal`, `CartDrawer` (mobile) | Client Component | Butuh state interaktif + gestures |
-| `DataTable` | Client Component | Sort, filter, pagination client-side |
-| `Receipt` | Client Component | `window.print()` |
+| `/orders`, `/products` pages | Server Component | Direct data fetching without `useEffect` |
+| `Cart`, `PaymentModal`, `CartDrawer` (mobile) | Client Component | Requires interactive state + gestures |
+| `DataTable` | Client Component | Client-side sort, filter, pagination |
+| `Receipt` | Client Component | Requires `window.print()` |
 
 ### 5.2 Discount (Removed from MVP)
-Fitur diskon di-hold untuk v1.1. MVP hanya menghitung subtotal → total tanpa diskon.
-Schema tetap memiliki kolom `discount_amount` (default 0) untuk kompatibilitas forward.
+Discount feature is deferred to v1.1. MVP calculates subtotal → total with no discounts.
+The `discount_amount` column is retained in the schema (defaulting to 0) for forward compatibility.
 
-### 5.3 Optimistic UI di Cart
-Ketika kasir menambah produk ke cart, state Zustand diupdate **segera** (optimistic).
-Tidak ada round-trip ke server saat membangun cart — hanya satu POST saat bayar.
-Ini membuat layar kasir terasa instan.
+### 5.3 Optimistic UI in Cart
+When a cashier adds a product to the cart, Zustand state is updated **immediately** (optimistic).
+No round-trip to the server while building the cart — only one POST when paying.
+This makes the cashier screen feel instant.
 
-### 5.4 Print Struk Tanpa Library Berat
-`react-to-print` meng-inject CSS print media query untuk layout 58mm thermal.
-Tidak butuh server-side PDF generation di MVP.
+### 5.4 Receipt Printing Without a Heavy Library
+`react-to-print` injects a CSS print media query for the 58mm thermal layout.
+No server-side PDF generation required in MVP.
 
-### 5.5 Responsif
-- Breakpoint: `sm` 640px, `md` 768px, `lg` 1024px, `xl` 1280px
-- Layar kasir (/pos) dioptimalkan untuk **tablet landscape** (kasir meja)
-- Dashboard produk/laporan dioptimalkan untuk **desktop**
+### 5.5 Responsive Layout
+- Breakpoints: `sm` 640px, `md` 768px, `lg` 1024px, `xl` 1280px
+- Cashier screen (/pos) optimized for **landscape tablet** (counter use)
+- Product & report dashboards optimized for **desktop**
 
-### 5.6 Aksesibilitas
-- Semua interactive element punya `aria-label`
-- Fokus keyboard navigable (Tab order logis)
-- Kontras warna minimum AA (WCAG 2.1)
-- shadcn/ui komponen berbasis Radix — aksesibel secara default
+### 5.6 Accessibility
+- All interactive elements have `aria-label`
+- Keyboard navigation with logical Tab order
+- Minimum color contrast AA (WCAG 2.1)
+- shadcn/ui components built on Radix — accessible by default

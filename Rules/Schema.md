@@ -17,36 +17,39 @@ orders ◄──── order_items ────► products
   │                           categories
   │
 payments (1-to-1 with orders)
-  
+
+stock_adjustments (N-to-1 with products)
 audit_logs
 ```
 
-### Relasi Lengkap
+### Full Relations
 ```
-users          1 ──── N  orders
-users          1 ──── N  audit_logs
-orders         1 ──── N  order_items
-orders         1 ──── 1  payments
-order_items    N ──── 1  products
-products       N ──── 1  categories
+users             1 ──── N  orders
+users             1 ──── N  audit_logs
+users             1 ──── N  stock_adjustments
+orders            1 ──── N  order_items
+orders            1 ──── 1  payments
+order_items       N ──── 1  products
+products          N ──── 1  categories
+stock_adjustments N ──── 1  products
 ```
 
 ---
 
-## 2. Tabel
+## 2. Tables
 
 ### 2.1 `users`
 
-| Kolom | Tipe | Constraint | Keterangan |
+| Column | Type | Constraint | Description |
 |---|---|---|---|
 | `id` | `UUID` | PK, DEFAULT gen_random_uuid() | Primary key |
-| `name` | `VARCHAR(100)` | NOT NULL | Nama lengkap |
-| `email` | `VARCHAR(255)` | NOT NULL, UNIQUE | Email login |
+| `name` | `VARCHAR(100)` | NOT NULL | Full name |
+| `email` | `VARCHAR(255)` | NOT NULL, UNIQUE | Login email |
 | `password_hash` | `VARCHAR(255)` | NOT NULL | bcrypt hash |
-| `role` | `ENUM('ADMIN','CASHIER')` | NOT NULL, DEFAULT 'CASHIER' | Hak akses |
-| `is_active` | `BOOLEAN` | NOT NULL, DEFAULT TRUE | Soft disable akun |
+| `role` | `ENUM('ADMIN','CASHIER')` | NOT NULL, DEFAULT 'CASHIER' | Access level |
+| `is_active` | `BOOLEAN` | NOT NULL, DEFAULT TRUE | Soft-disable account |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | Auto-update via trigger |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | Auto-updated via trigger |
 
 ```sql
 CREATE TYPE user_role AS ENUM ('ADMIN', 'CASHIER');
@@ -67,10 +70,10 @@ CREATE TABLE users (
 
 ### 2.2 `categories`
 
-| Kolom | Tipe | Constraint | Keterangan |
+| Column | Type | Constraint | Description |
 |---|---|---|---|
 | `id` | `UUID` | PK | Primary key |
-| `name` | `VARCHAR(100)` | NOT NULL, UNIQUE | Nama kategori (Makanan, Minuman, dst.) |
+| `name` | `VARCHAR(100)` | NOT NULL, UNIQUE | Category name (Food, Drinks, etc.) |
 | `slug` | `VARCHAR(100)` | NOT NULL, UNIQUE | URL-friendly, lowercase |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | |
 
@@ -87,18 +90,18 @@ CREATE TABLE categories (
 
 ### 2.3 `products`
 
-| Kolom | Tipe | Constraint | Keterangan |
+| Column | Type | Constraint | Description |
 |---|---|---|---|
 | `id` | `UUID` | PK | |
-| `category_id` | `UUID` | FK → categories.id, SET NULL | Nullable: produk tanpa kategori tetap valid |
-| `sku` | `VARCHAR(50)` | UNIQUE | Kode produk (opsional, bisa auto-generate) |
-| `name` | `VARCHAR(200)` | NOT NULL | Nama produk |
-| `description` | `TEXT` | | Deskripsi opsional |
-| `price` | `NUMERIC(12,2)` | NOT NULL, CHECK (price >= 0) | Harga jual dalam Rupiah |
-| `cost_price` | `NUMERIC(12,2)` | CHECK (cost_price >= 0) | Harga modal (untuk laporan margin) |
-| `image_url` | `TEXT` | | URL foto dari cloud storage |
-| `stock` | `INTEGER` | NOT NULL, DEFAULT 0, CHECK (stock >= 0) | Stok saat ini — constraint no-negative |
-| `low_stock_threshold` | `INTEGER` | NOT NULL, DEFAULT 5 | Batas alert stok rendah |
+| `category_id` | `UUID` | FK → categories.id, SET NULL | Nullable: product without a category is valid |
+| `sku` | `VARCHAR(50)` | UNIQUE | Product code (optional, can be auto-generated) |
+| `name` | `VARCHAR(200)` | NOT NULL | Product name |
+| `description` | `TEXT` | | Optional description |
+| `price` | `NUMERIC(12,2)` | NOT NULL, CHECK (price >= 0) | Selling price |
+| `cost_price` | `NUMERIC(12,2)` | CHECK (cost_price >= 0) | Cost price (for margin reports) |
+| `image_url` | `TEXT` | | Photo URL from cloud storage |
+| `stock` | `INTEGER` | NOT NULL, DEFAULT 0, CHECK (stock >= 0) | Current stock — no-negative constraint |
+| `low_stock_threshold` | `INTEGER` | NOT NULL, DEFAULT 5 | Low stock alert threshold |
 | `is_active` | `BOOLEAN` | NOT NULL, DEFAULT TRUE | Soft delete |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | |
 | `updated_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | |
@@ -121,24 +124,24 @@ CREATE TABLE products (
 );
 ```
 
-> **Constraint penting:** `CHECK (stock >= 0)` mencegah stok negatif langsung di level DB
-> sebagai safety net, di samping validasi di service layer.
+> **Key constraint:** `CHECK (stock >= 0)` prevents negative stock at the DB level as a
+> safety net, in addition to the service-layer validation (defense-in-depth).
 
 ---
 
 ### 2.4 `orders`
 
-| Kolom | Tipe | Constraint | Keterangan |
+| Column | Type | Constraint | Description |
 |---|---|---|---|
 | `id` | `UUID` | PK | |
 | `order_number` | `VARCHAR(20)` | NOT NULL, UNIQUE | Format: `ORD-YYYYMMDD-XXXX` (generated via DB sequence) |
-| `cashier_id` | `UUID` | FK → users.id, SET NULL | Kasir yang memproses |
-| `subtotal` | `NUMERIC(12,2)` | NOT NULL | Total sebelum diskon |
-| `discount_amount` | `NUMERIC(12,2)` | NOT NULL, DEFAULT 0 | Total diskon |
-| `total_amount` | `NUMERIC(12,2)` | NOT NULL | Subtotal - diskon |
+| `cashier_id` | `UUID` | FK → users.id, SET NULL | Cashier who processed the transaction |
+| `subtotal` | `NUMERIC(12,2)` | NOT NULL | Total before discount |
+| `discount_amount` | `NUMERIC(12,2)` | NOT NULL, DEFAULT 0 | Total discount (reserved for v1.1) |
+| `total_amount` | `NUMERIC(12,2)` | NOT NULL | Subtotal − discount |
 | `status` | `ENUM` | NOT NULL, DEFAULT 'COMPLETED' | `PENDING`, `COMPLETED`, `VOIDED` |
-| `notes` | `TEXT` | | Catatan kasir |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | Waktu transaksi |
+| `notes` | `TEXT` | | Cashier notes |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | Transaction timestamp |
 
 ```sql
 CREATE TYPE order_status AS ENUM ('PENDING', 'COMPLETED', 'VOIDED');
@@ -156,21 +159,21 @@ CREATE TABLE orders (
 );
 ```
 
-> **Immutability:** Tabel `orders` tidak memiliki `updated_at` — transaksi yang sudah
-> `COMPLETED` tidak boleh diubah, hanya bisa di-`VOID`. Void order tidak mengembalikan stok
-> secara otomatis di MVP (manual adjustment via inventory).
+> **Immutability:** The `orders` table has no `updated_at` — completed transactions cannot
+> be modified, only VOIDED. A voided order does not automatically restore stock in MVP
+> (manual adjustment via inventory).
 
 ---
 
 ### 2.5 `order_items`
 
-| Kolom | Tipe | Constraint | Keterangan |
+| Column | Type | Constraint | Description |
 |---|---|---|---|
 | `id` | `UUID` | PK | |
-| `order_id` | `UUID` | FK → orders.id, CASCADE DELETE | |
-| `product_id` | `UUID` | FK → products.id, SET NULL | Nullable: produk bisa dihapus |
-| `product_name` | `VARCHAR(200)` | NOT NULL | Snapshot nama saat transaksi |
-| `unit_price` | `NUMERIC(12,2)` | NOT NULL | Snapshot harga saat transaksi |
+| `order_id` | `UUID` | FK → orders.id, ON DELETE RESTRICT | |
+| `product_id` | `UUID` | FK → products.id, SET NULL | Nullable: product can be deactivated |
+| `product_name` | `VARCHAR(200)` | NOT NULL | Snapshot of product name at time of transaction |
+| `unit_price` | `NUMERIC(12,2)` | NOT NULL | Snapshot of price at time of transaction |
 | `quantity` | `INTEGER` | NOT NULL, CHECK (quantity > 0) | |
 | `subtotal` | `NUMERIC(12,2)` | NOT NULL | unit_price × quantity |
 
@@ -186,25 +189,25 @@ CREATE TABLE order_items (
 );
 ```
 
-> **Snapshot pattern:** `product_name` dan `unit_price` disalin ke `order_items` saat
-> checkout agar riwayat transaksi akurat meski harga produk berubah di masa depan.
+> **Snapshot pattern:** `product_name` and `unit_price` are copied into `order_items` at
+> checkout to preserve accurate transaction history even if the product master data changes.
 >
-> **ON DELETE RESTRICT:** Order bersifat immutable — jika ada upaya menghapus order,
-> constraint akan mencegahnya dan throw error. Ini lebih aman dari CASCADE yang menghapus
-> data historis secara silent.
+> **ON DELETE RESTRICT:** Orders are immutable — any attempt to delete an order will be
+> blocked by this constraint and raise an error. This is safer than CASCADE, which would
+> silently delete historical data.
 
 ---
 
 ### 2.6 `payments`
 
-| Kolom | Tipe | Constraint | Keterangan |
+| Column | Type | Constraint | Description |
 |---|---|---|---|
 | `id` | `UUID` | PK | |
 | `order_id` | `UUID` | FK → orders.id, UNIQUE (1-to-1) | |
 | `method` | `ENUM` | NOT NULL | `CASH`, `CARD`, `QRIS` |
-| `amount_paid` | `NUMERIC(12,2)` | NOT NULL | Nominal yang dibayarkan |
-| `change_amount` | `NUMERIC(12,2)` | NOT NULL, DEFAULT 0 | Kembalian |
-| `reference_number` | `VARCHAR(100)` | | No. referensi untuk Kartu/QRIS |
+| `amount_paid` | `NUMERIC(12,2)` | NOT NULL | Amount tendered |
+| `change_amount` | `NUMERIC(12,2)` | NOT NULL, DEFAULT 0 | Change returned |
+| `reference_number` | `VARCHAR(100)` | | Reference number for Card / QRIS |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | |
 
 ```sql
@@ -225,14 +228,14 @@ CREATE TABLE payments (
 
 ### 2.7 `audit_logs`
 
-| Kolom | Tipe | Constraint | Keterangan |
+| Column | Type | Constraint | Description |
 |---|---|---|---|
 | `id` | `UUID` | PK | |
-| `user_id` | `UUID` | FK → users.id, SET NULL | Aktor |
+| `user_id` | `UUID` | FK → users.id, SET NULL | Actor |
 | `action` | `VARCHAR(100)` | NOT NULL | e.g. `product.price_changed`, `order.voided` |
 | `entity_type` | `VARCHAR(50)` | NOT NULL | e.g. `product`, `order` |
-| `entity_id` | `UUID` | | ID record yang terpengaruh |
-| `metadata` | `JSONB` | | Data tambahan (nilai lama/baru) |
+| `entity_id` | `UUID` | | ID of the affected record |
+| `metadata` | `JSONB` | | Additional data (old/new values) |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | |
 
 ```sql
@@ -251,13 +254,13 @@ CREATE TABLE audit_logs (
 
 ### 2.8 `stock_adjustments`
 
-| Kolom | Tipe | Constraint | Keterangan |
+| Column | Type | Constraint | Description |
 |---|---|---|---|
 | `id` | `UUID` | PK | |
 | `product_id` | `UUID` | FK → products.id, CASCADE | |
-| `user_id` | `UUID` | FK → users.id, SET NULL | Admin yang melakukan adjustment |
-| `delta` | `INTEGER` | NOT NULL | ±qty (positif = restock, negatif = koreksi berkurang) |
-| `reason` | `TEXT` | NOT NULL | Alasan adjustment (e.g., "Pembelian supplier", "Produk rusak") |
+| `user_id` | `UUID` | FK → users.id, SET NULL | Admin who performed the adjustment |
+| `delta` | `INTEGER` | NOT NULL | ±qty (positive = restock, negative = correction) |
+| `reason` | `TEXT` | NOT NULL | Reason for adjustment (e.g., "Received from supplier", "Damaged goods") |
 | `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | |
 
 ```sql
@@ -271,24 +274,24 @@ CREATE TABLE stock_adjustments (
 );
 ```
 
-> **Audit trail stok:** Setiap kali admin adjust stok, record tersimpan di sini.
-> `delta` positif = restock, negatif = pengurangan manual (rusak/expired/koreksi).
+> **Stock audit trail:** Every time an admin adjusts stock, a record is created here.
+> Positive `delta` = restock, negative `delta` = manual reduction (damaged/expired/correction).
 
 ---
 
 ## 3. Indexes
 
 ```sql
--- Performa query laporan harian
+-- Performance for daily report queries
 CREATE INDEX idx_orders_created_at    ON orders (created_at DESC);
 CREATE INDEX idx_orders_cashier_id    ON orders (cashier_id);
 CREATE INDEX idx_orders_status        ON orders (status);
 
--- Lookup order items per order
-CREATE INDEX idx_order_items_order_id ON order_items (order_id);
+-- Lookup order items by order
+CREATE INDEX idx_order_items_order_id   ON order_items (order_id);
 CREATE INDEX idx_order_items_product_id ON order_items (product_id);
 
--- Produk aktif + kategori (query POS grid)
+-- Active products + category filter (POS grid query)
 CREATE INDEX idx_products_category_id ON products (category_id);
 CREATE INDEX idx_products_is_active   ON products (is_active);
 
@@ -328,10 +331,10 @@ CREATE TRIGGER trg_products_updated_at
 ## 5. Order Number Generation (Sequence-Based)
 
 ```sql
--- Sequence untuk counter harian
+-- Sequence for order counter
 CREATE SEQUENCE order_number_seq;
 
--- Function untuk generate order_number
+-- Function to generate order_number
 CREATE OR REPLACE FUNCTION generate_order_number()
 RETURNS VARCHAR(20) AS $$
 DECLARE
@@ -344,13 +347,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Gunakan sebagai default value (opsional, bisa juga di service layer)
+-- Can be used as a default value (or called from the service layer)
 -- ALTER TABLE orders ALTER COLUMN order_number SET DEFAULT generate_order_number();
 ```
 
-**Strategi:** `nextval()` dijamin unik per-database connection. Jika 2 request bersamaan,
-PostgreSQL lock sequence secara internal — tidak ada race condition. Counter tidak reset
-per hari di MVP (simple sequence global). Reset harian bisa ditambahkan di v1.1.
+**Strategy:** `nextval()` is guaranteed unique per database connection. PostgreSQL locks
+the sequence internally on concurrent calls — no race condition possible. The counter does
+not reset daily in MVP (simple global sequence). Daily reset can be added in v1.1.
 
 ---
 
@@ -389,22 +392,22 @@ model Category {
 }
 
 model Product {
-  id               String            @id @default(uuid())
-  categoryId       String?
-  category         Category?         @relation(fields: [categoryId], references: [id])
-  sku              String?           @unique @db.VarChar(50)
-  name             String            @db.VarChar(200)
-  description      String?
-  price            Decimal           @db.Decimal(12, 2)
-  costPrice        Decimal?          @db.Decimal(12, 2)
-  imageUrl         String?
-  stock            Int               @default(0)
-  lowStockThreshold Int              @default(5)
-  isActive         Boolean           @default(true)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  orderItems       OrderItem[]
-  stockAdjustments StockAdjustment[]
+  id                String            @id @default(uuid())
+  categoryId        String?
+  category          Category?         @relation(fields: [categoryId], references: [id])
+  sku               String?           @unique @db.VarChar(50)
+  name              String            @db.VarChar(200)
+  description       String?
+  price             Decimal           @db.Decimal(12, 2)
+  costPrice         Decimal?          @db.Decimal(12, 2)
+  imageUrl          String?
+  stock             Int               @default(0)
+  lowStockThreshold Int               @default(5)
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  orderItems        OrderItem[]
+  stockAdjustments  StockAdjustment[]
 }
 
 model Order {
@@ -487,16 +490,16 @@ enum PaymentMethod {
 
 ---
 
-## 7. Catatan & Keputusan
+## 7. Notes & Decisions
 
-| Keputusan | Alasan |
+| Decision | Reason |
 |---|---|
-| `NUMERIC(12,2)` untuk harga | Menghindari floating-point error pada kalkulasi uang |
-| UUID sebagai PK | Aman untuk expose di URL; dapat di-generate client-side; tidak bocorkan sequence |
-| Snapshot nama & harga di `order_items` | Menjaga akurasi riwayat meski data master berubah |
-| Tidak ada `deleted_at` di `orders` | Order bersifat immutable; hanya bisa VOIDED |
-| `JSONB` di `audit_logs.metadata` | Fleksibel untuk menyimpan old/new value tanpa schema kaku |
-| `stock CHECK >= 0` di DB | Defense-in-depth: validasi berlapis (service + DB constraint) |
-| `ON DELETE RESTRICT` di order_items | Mencegah silent delete order + items; fail loudly jika dicoba |
-| `stock_adjustments` table | Audit trail untuk setiap restock / koreksi manual |
-| Sequence-based order_number | Menghindari race condition; PostgreSQL lock sequence internal |
+| `NUMERIC(12,2)` for prices | Avoids floating-point drift on monetary calculations |
+| UUID as PK | Safe to expose in URLs; can be generated client-side; does not leak sequence info |
+| Snapshot name & price in `order_items` | Preserves accurate history even if product master data changes |
+| No `deleted_at` on `orders` | Orders are immutable; can only be VOIDED |
+| `JSONB` in `audit_logs.metadata` | Flexible for storing old/new values without a rigid schema |
+| `stock CHECK >= 0` in DB | Defense-in-depth: layered validation (service + DB constraint) |
+| `ON DELETE RESTRICT` on order_items | Prevents silent deletion of order history; fails loudly |
+| `stock_adjustments` table | Audit trail for every restock or manual correction |
+| Sequence-based order_number | Eliminates race conditions; PostgreSQL locks sequence internally |

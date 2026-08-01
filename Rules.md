@@ -1,63 +1,63 @@
 # Rules — Point of Sales MVP
 
-> Dokumen ini adalah **single source of truth** untuk coding convention, style guide,
-> dan batasan yang wajib dipatuhi oleh semua kontributor (manusia maupun AI).
+> This document is the **single source of truth** for coding conventions, style guides,
+> and constraints that all contributors (human or AI) must follow.
 
 ---
 
-## 1. Prinsip Utama
+## 1. Core Principles
 
-1. **Correctness over cleverness** — kode yang jelas lebih baik dari kode yang pintar.
-2. **Minimal surface area** — tambahkan kode hanya jika ada kebutuhan nyata (YAGNI).
-3. **Fail loudly** — validasi di awal, lempar error eksplisit, jangan silent fail.
-4. **Security by default** — data user, credential, dan transaksi keuangan harus selalu
-   dilindungi. Lihat bagian Keamanan.
+1. **Correctness over cleverness** — clear code is better than clever code.
+2. **Minimal surface area** — only add code when there is a real need (YAGNI).
+3. **Fail loudly** — validate early, throw explicit errors, never silent-fail.
+4. **Security by default** — user data, credentials, and financial transactions must
+   always be protected. See the Security section.
 
 ---
 
-## 2. Bahasa & Runtime
+## 2. Language & Runtime
 
-| Item | Pilihan |
+| Item | Choice |
 |---|---|
-| Bahasa | TypeScript 5.x (strict mode ON) |
+| Language | TypeScript 5.x (strict mode ON) |
 | Runtime | Node.js LTS (≥ 20) |
-| Package manager | `pnpm` (konsistensi lockfile) |
-| Formatter | Prettier (konfigurasi di `.prettierrc`) |
-| Linter | ESLint dengan ruleset `next/core-web-vitals` + `@typescript-eslint` |
+| Package manager | `pnpm` (consistent lockfile) |
+| Formatter | Prettier (config in `.prettierrc`) |
+| Linter | ESLint with `next/core-web-vitals` + `@typescript-eslint` ruleset |
 
 ### TypeScript Rules
-- `"strict": true` di `tsconfig.json` — wajib, tidak boleh di-disable.
-- Tidak boleh menggunakan `any`. Gunakan `unknown` dan narrowing jika tipe tidak pasti.
-- Setiap fungsi publik di `services/` wajib memiliki tipe return eksplisit.
-- `interface` untuk shape data/DTO; `type` untuk union/intersection.
+- `"strict": true` in `tsconfig.json` — mandatory, must not be disabled.
+- `any` is forbidden. Use `unknown` with narrowing when the type is uncertain.
+- Every public function in `services/` must have an explicit return type.
+- `interface` for data shapes / DTOs; `type` for unions and intersections.
 
 ---
 
 ## 3. Naming Convention
 
-| Konteks | Convention | Contoh |
+| Context | Convention | Example |
 |---|---|---|
 | File & folder | kebab-case | `order-service.ts`, `product-card.tsx` |
-| Komponen React | PascalCase | `ProductCard`, `CartPanel` |
-| Variabel & fungsi | camelCase | `totalAmount`, `createOrder()` |
-| Konstanta global | SCREAMING_SNAKE | `LOW_STOCK_THRESHOLD` |
+| React component | PascalCase | `ProductCard`, `CartPanel` |
+| Variable & function | camelCase | `totalAmount`, `createOrder()` |
+| Global constant | SCREAMING_SNAKE | `LOW_STOCK_THRESHOLD` |
 | Prisma model | PascalCase | `Order`, `OrderItem` |
-| DB kolom | snake_case | `order_number`, `created_at` |
+| DB column | snake_case | `order_number`, `created_at` |
 | Env variable | SCREAMING_SNAKE | `DATABASE_URL`, `NEXTAUTH_SECRET` |
 | Zod schema | camelCase + `Schema` suffix | `createOrderSchema`, `productSchema` |
 
 ---
 
-## 4. Struktur File
+## 4. File Structure
 
-### 4.1 Komponen React
-Setiap komponen memiliki satu file. Urutan di dalam file:
+### 4.1 React Components
+Each component lives in its own file. Order within the file:
 ```typescript
 // 1. Imports (external → internal → types → styles)
 // 2. Type definitions (Props interface)
-// 3. Konstanta komponen (jika ada)
-// 4. Komponen utama (default export)
-// 5. Sub-komponen kecil (named export, jika ada)
+// 3. Component-level constants (if any)
+// 4. Main component (default export)
+// 5. Small sub-components (named export, if any)
 ```
 
 ### 4.2 API Route Handler
@@ -80,7 +80,7 @@ export const POST = withAuth(
     const product = await ProductService.create(parsed.data)
     return NextResponse.json(product, { status: 201 })
   },
-  { roles: ['ADMIN'] } // hanya admin yang bisa create product
+  { roles: ['ADMIN'] } // only admins can create products
 )
 ```
 
@@ -99,20 +99,20 @@ export const ProductService = {
 
 ---
 
-## 5. Validasi
+## 5. Validation
 
-- **Selalu** validasi input API dengan Zod sebelum menyentuh DB.
-- Gunakan `schema.safeParse()` di API route (bukan `schema.parse()`) agar bisa return
-  response 400 yang informatif.
-- Zod schema wajib berada di `lib/validations/` dan di-export untuk re-use di form.
-- Jangan duplikasi validasi logika di service layer jika sudah ada di schema.
+- **Always** validate API input with Zod before touching the DB.
+- Use `schema.safeParse()` in API routes (not `schema.parse()`) to return an informative
+  400 response on failure.
+- Zod schemas must live in `lib/validations/` and be exported for reuse in forms.
+- Do not duplicate validation logic in the service layer if it already exists in the schema.
 
 ```typescript
-// BENAR
+// CORRECT
 const parsed = createOrderSchema.safeParse(body)
 if (!parsed.success) return NextResponse.json({ error: ... }, { status: 400 })
 
-// SALAH — langsung throw, tidak bisa catch gracefully
+// WRONG — throws directly, cannot be caught gracefully
 const data = createOrderSchema.parse(body)
 ```
 
@@ -120,34 +120,35 @@ const data = createOrderSchema.parse(body)
 
 ## 6. Error Handling
 
-- API route **tidak boleh** mengembalikan stack trace atau pesan error internal ke client.
-- Log error detail di server (`console.error` atau logger), kembalikan pesan generic.
-- Gunakan HTTP status code yang tepat:
+- API routes **must not** return stack traces or internal error messages to the client.
+- Log error details server-side (`console.error` or logger), return a generic message.
+- Use the correct HTTP status codes:
 
-| Status | Penggunaan |
+| Status | Usage |
 |---|---|
-| 200 | GET/PUT sukses dengan body |
-| 201 | POST sukses (resource dibuat) |
-| 400 | Validasi gagal / input tidak valid |
-| 401 | Tidak terautentikasi |
-| 403 | Tidak berpermisi (role salah) |
-| 404 | Resource tidak ditemukan |
-| 409 | Konflik (duplikat SKU, stok tidak cukup) |
-| 500 | Server error (jangan expose detail) |
+| 200 | GET / PUT success with body |
+| 201 | POST success (resource created) |
+| 400 | Validation failure / invalid input |
+| 401 | Not authenticated |
+| 403 | Not authorized (wrong role) |
+| 404 | Resource not found |
+| 409 | Conflict (duplicate SKU, insufficient stock) |
+| 429 | Rate limit exceeded |
+| 500 | Server error (do not expose details) |
 
 ```typescript
-// BENAR
+// CORRECT
 try {
   const order = await OrderService.create(data)
   return NextResponse.json(order, { status: 201 })
 } catch (err) {
   console.error('[POST /api/orders]', err)
-  return NextResponse.json({ error: 'Gagal memproses transaksi' }, { status: 500 })
+  return NextResponse.json({ error: 'Failed to process transaction' }, { status: 500 })
 }
 
-// SALAH
+// WRONG
 } catch (err) {
-  return NextResponse.json({ error: err.message }, { status: 500 }) // bocor info internal
+  return NextResponse.json({ error: err.message }, { status: 500 }) // leaks internal info
 }
 ```
 
@@ -155,10 +156,10 @@ try {
 
 ## 7. Database & Prisma
 
-- **Semua** operasi yang melibatkan create order + decrement stok **wajib** menggunakan
+- **All** operations involving order creation + stock decrement **must** use
   `prisma.$transaction()`.
-- Jangan tulis raw SQL kecuali benar-benar diperlukan (dan harus di-review).
-- `prisma` client di-instantiate sebagai singleton di `lib/prisma.ts`:
+- Do not write raw SQL unless absolutely necessary (and it must be reviewed).
+- The `prisma` client is instantiated as a singleton in `lib/prisma.ts`:
 
 ```typescript
 // lib/prisma.ts
@@ -172,30 +173,30 @@ export const prisma =
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 ```
 
-- Migration wajib di-review sebelum di-apply ke production.
-- Jangan hapus kolom yang masih di-reference oleh kode tanpa migration terlebih dahulu.
+- Migrations must be reviewed before being applied to production.
+- Never delete a column that is still referenced in code without a migration first.
 
 ---
 
-## 8. Keamanan (Wajib Dipatuhi)
+## 8. Security (Mandatory)
 
-### 8.1 Credential & Secret
-- **DILARANG** hardcode API key, secret, password, atau connection string di kode.
-- Semua secret di `.env` (local) dan environment variable (production).
-- `.env` **tidak boleh** di-commit ke Git. Gunakan `.env.example` sebagai template.
+### 8.1 Credentials & Secrets
+- **FORBIDDEN:** Hardcoding API keys, secrets, passwords, or connection strings in code.
+- All secrets go in `.env` (local) and environment variables (production).
+- `.env` **must not** be committed to Git. Use `.env.example` as a template.
 
-### 8.2 Autentikasi & Otorisasi
-- Setiap API route yang mengubah data **wajib** di-wrap dengan `withAuth()` middleware.
-- Role check dilakukan di service layer atau API route, bukan hanya di frontend.
-- Session JWT disimpan di httpOnly cookie — tidak boleh di `localStorage`.
+### 8.2 Authentication & Authorization
+- Every API route that mutates data **must** be wrapped with `withAuth()` middleware.
+- Role checks are performed in the service layer or API route — not only in the frontend.
+- Session JWT is stored in an httpOnly cookie — never in `localStorage`.
 
 ### 8.3 Input
-- Jangan pernah interpolate input user ke dalam query SQL secara langsung.
-- Gunakan Prisma (parameterized query otomatis) untuk semua operasi DB.
+- Never interpolate user input directly into SQL queries.
+- Use Prisma (parameterized queries by default) for all DB operations.
 
 ### 8.4 Logging
-- **DILARANG** log password, token, atau data PII pengguna.
-- Log hanya `user_id`, `action`, dan `entity_id` untuk audit trail.
+- **FORBIDDEN:** Logging passwords, tokens, or PII.
+- Log only `user_id`, `action`, and `entity_id` for the audit trail.
 
 ---
 
@@ -214,15 +215,15 @@ withAuth(
 ```
 
 **Behavior:**
-1. Extract session dari cookie via NextAuth `getServerSession()`
-2. Jika tidak ada session → return `401 Unauthorized`
-3. Jika `options.roles` di-specify dan user role tidak match → return `403 Forbidden`
-4. Inject `req.user` dengan shape `{ id: string, email: string, role: UserRole }`
-5. Call handler dengan req yang sudah ter-augment
+1. Extract session from cookie via NextAuth `getServerSession()`
+2. If no session → return `401 Unauthorized`
+3. If `options.roles` is specified and user's role does not match → return `403 Forbidden`
+4. Inject `req.user` with shape `{ id: string, email: string, role: UserRole }`
+5. Call the handler with the augmented request
 
-**Contoh:**
+**Examples:**
 ```typescript
-// Hanya admin
+// Admin only
 export const DELETE = withAuth(
   async (req) => {
     const { id } = req.user // type-safe
@@ -231,9 +232,9 @@ export const DELETE = withAuth(
   { roles: ['ADMIN'] }
 )
 
-// Semua authenticated user
+// Any authenticated user
 export const GET = withAuth(async (req) => {
-  // req.user tersedia
+  // req.user is available
 })
 ```
 
@@ -255,41 +256,41 @@ export interface NextRequestWithUser extends NextRequest {
 
 ## 10. Environment Variables
 
-Semua secret disimpan di `.env` (local) atau environment variable di hosting (Vercel).
+All secrets are stored in `.env` (local) or environment variables on the hosting platform (Vercel).
 
 **Required variables:**
 
-| Variable | Contoh | Keterangan |
+| Variable | Example | Description |
 |---|---|---|
 | `DATABASE_URL` | `postgresql://user:pass@host:5432/db` | Supabase connection string |
-| `NEXTAUTH_SECRET` | `openssl rand -base64 32` | JWT signing key (32+ char random) |
-| `NEXTAUTH_URL` | `http://localhost:3000` | Base URL (prod: `https://pos.example.com`) |
+| `NEXTAUTH_SECRET` | `openssl rand -base64 32` | JWT signing key (32+ random chars) |
+| `NEXTAUTH_URL` | `http://localhost:3000` | Base URL (production: `https://pos.example.com`) |
 | `R2_ACCOUNT_ID` | `abc123...` | Cloudflare R2 account ID |
 | `R2_ACCESS_KEY_ID` | `xxx` | R2 access key |
-| `R2_SECRET_ACCESS_KEY` | `yyy` | R2 secret |
+| `R2_SECRET_ACCESS_KEY` | `yyy` | R2 secret key |
 | `R2_BUCKET_NAME` | `pos-mvp-uploads` | Bucket name |
 | `R2_PUBLIC_URL` | `https://pub-xxx.r2.dev` | Public CDN URL for uploaded files |
 
 **Setup:**
 1. Copy `.env.example` → `.env`
-2. Fill semua variable dengan value dari Supabase dashboard (DB) dan Cloudflare R2 (storage)
-3. Jangan commit `.env` (sudah di `.gitignore`)
+2. Fill in all variables from the Supabase dashboard (DB) and Cloudflare R2 (storage)
+3. Never commit `.env` (already in `.gitignore`)
 
 ---
 
 ## 11. Testing
 
-| Level | Tool | Target Coverage |
+| Level | Tool | Coverage Target |
 |---|---|---|
 | Unit | Vitest | Service layer: ≥ 80% |
-| Integration | Vitest + Prisma test DB | API routes: happy path + error |
-| E2E | Playwright | Core flow: login → checkout → struk |
+| Integration | Vitest + Prisma test DB | API routes: happy path + error cases |
+| E2E | Playwright | Core flow: login → checkout → receipt |
 
-### Aturan Test
-- Nama test file: `*.test.ts` (unit) / `*.spec.ts` (E2E).
-- Test harus **independent** — tidak bergantung pada urutan eksekusi.
-- Gunakan factory function untuk membuat data test, bukan hardcode.
-- Mock eksternal dependency (payment, storage) di unit test.
+### Testing Rules
+- Test file names: `*.test.ts` (unit) / `*.spec.ts` (E2E).
+- Tests must be **independent** — no dependency on execution order.
+- Use factory functions to create test data, not hardcoded values.
+- Mock external dependencies (payment, storage) in unit tests.
 
 ---
 
@@ -303,7 +304,7 @@ chore/update-prisma-client
 docs/update-architecture
 ```
 
-### Commit Message (Conventional Commits)
+### Commit Messages (Conventional Commits)
 ```
 feat(pos): add cart quantity controls
 fix(inventory): prevent negative stock on concurrent orders
@@ -313,64 +314,63 @@ test(order): add unit tests for OrderService.create
 ```
 
 ### Pull Request Rules
-- PR wajib pass semua CI checks (lint, typecheck, test) sebelum merge.
-- Minimal 1 review sebelum merge ke `main`.
-- Jangan push langsung ke `main`.
+- PR must pass all CI checks (lint, typecheck, test) before merging.
+- Minimum 1 review before merging to `main`.
+- Never push directly to `main`.
 
 ---
 
 ## 13. Production Migration Runbook
 
-Saat apply migration ke production database:
+When applying a migration to the production database:
 
-1. **Backup database** — ambil snapshot via Supabase dashboard atau `pg_dump`
-2. **Dry-run lokal** — test migration di DB lokal yang di-seed dengan production-like data
-3. **Check status** — `pnpm prisma migrate status` di production env
-4. **Apply** — `pnpm prisma migrate deploy` (ini auto-apply pending migrations)
+1. **Backup the database** — take a snapshot via Supabase dashboard or `pg_dump`
+2. **Dry-run locally** — test migration on a local DB seeded with production-like data
+3. **Check status** — `pnpm prisma migrate status` in the production environment
+4. **Apply** — `pnpm prisma migrate deploy` (auto-applies pending migrations)
 5. **Smoke test** — hit critical API routes (login, create order, check stock)
-6. **Rollback plan** — jika gagal:
-   - Restore snapshot DB
-   - Revert commit yang menambahkan migration
-   - Re-deploy versi sebelumnya
+6. **Rollback plan** — if something goes wrong:
+   - Restore DB snapshot
+   - Revert the commit that added the migration
+   - Redeploy the previous version
 
-**NEVER** run `prisma migrate dev` di production — itu generate migration baru.
-Gunakan `prisma migrate deploy` untuk apply migration yang sudah ter-commit.
+**NEVER** run `prisma migrate dev` in production — it generates new migrations.
+Use `prisma migrate deploy` to apply already-committed migrations.
 
 ---
 
-## 14. Batasan untuk AI / Kontributor Otomatis
+## 14. Constraints for AI / Automated Contributors
 
-Jika Anda adalah AI atau tools otomatis yang berkontribusi ke repo ini, patuhi aturan
-berikut:
+If you are an AI or automated tool contributing to this repository, follow these rules:
 
-1. **Jangan modifikasi file berikut tanpa instruksi eksplisit:**
+1. **Do not modify the following files without explicit instruction:**
    - `prisma/schema.prisma` (DB schema)
-   - `lib/auth.ts` (konfigurasi autentikasi)
+   - `lib/auth.ts` (authentication configuration)
    - `.env.example`
-   - File migration di `prisma/migrations/`
+   - Migration files in `prisma/migrations/`
 
-2. **Jangan tambahkan dependency baru** tanpa mendokumentasikan alasan di PR description.
+2. **Do not add new dependencies** without documenting the reason in the PR description.
 
-3. **Jangan generate placeholder atau TODO** di kode produksi. Jika sesuatu belum
-   diimplementasi, buat issue terlebih dahulu.
+3. **Do not generate placeholder comments or TODOs** in production code. If something is
+   not yet implemented, create an issue first.
 
-4. **Ikuti naming convention** — jangan ubah convention yang sudah ada tanpa diskusi.
+4. **Follow the naming convention** — do not change established conventions without discussion.
 
-5. **Jangan expose error detail** ke API response (lihat bagian Error Handling).
+5. **Do not expose error details** in API responses (see Error Handling section).
 
-6. **Setiap perubahan pada service layer** harus disertai unit test.
+6. **Every change to the service layer** must be accompanied by a unit test.
 
-7. **Jangan disable ESLint rule** (`// eslint-disable`) tanpa komentar alasan yang jelas.
+7. **Do not disable ESLint rules** (`// eslint-disable`) without a clear explanatory comment.
 
 ---
 
-## 15. Checklist Sebelum Merge
+## 15. Pre-Merge Checklist
 
-- [ ] Kode di-format dengan Prettier (`pnpm format`)
-- [ ] Tidak ada error ESLint (`pnpm lint`)
-- [ ] TypeScript compile tanpa error (`pnpm typecheck`)
-- [ ] Semua test lulus (`pnpm test`)
-- [ ] Tidak ada secret / credential di kode
-- [ ] API baru sudah dilindungi `withAuth()`
-- [ ] Validasi Zod ditambahkan untuk input baru
-- [ ] Tidak ada `console.log` yang tertinggal di kode produksi
+- [ ] Code formatted with Prettier (`pnpm format`)
+- [ ] No ESLint errors (`pnpm lint`)
+- [ ] TypeScript compiles without errors (`pnpm typecheck`)
+- [ ] All tests pass (`pnpm test`)
+- [ ] No secrets or credentials in the code
+- [ ] New API routes are protected with `withAuth()`
+- [ ] Zod validation added for any new inputs
+- [ ] No `console.log` left in production code
