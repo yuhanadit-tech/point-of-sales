@@ -80,7 +80,7 @@
 | Display / Heading | Inter | 24px / 20px / 18px | 700 / 600 |
 | Body | Inter | 15px | 400 |
 | Label / Caption | Inter | 13px | 500 |
-| Monospace (kode/SKU) | JetBrains Mono | 13px | 400 |
+| Monospace (kode/SKU) | ui-monospace, SFMono-Regular, Consolas, monospace | 13px | 400 |
 
 ### 2.3 Spacing & Grid
 
@@ -127,14 +127,20 @@
 │ Croissant        x1   Rp 22.000  │
 ├──────────────────────────────────┤
 │ Subtotal              Rp 72.000  │
-│ Diskon (10%)         -Rp  7.200  │
-│ Total                 Rp 64.800  │
+│ Total                 Rp 72.000  │
 ├──────────────────────────────────┤
 │      [Bayar Sekarang]            │
 └──────────────────────────────────┘
 ```
-- Sticky di sisi kanan layar (min-height: 100vh)
+**Desktop (`md` ≥ 768px):**
+- Sticky di sisi kanan layar (min-height: 100vh, width: 360px)
 - Animasi slide-in saat item ditambah
+
+**Mobile (`< md`):**
+- Bottom drawer / slide-up sheet (height: 60% layar saat dibuka)
+- Floating cart button (bottom-right, fixed) menampilkan jumlah item
+- Tap button → drawer slides up dari bawah
+- Swipe down atau tap backdrop → tutup drawer
 
 ### 3.3 PaymentModal
 - Overlay dialog (modal)
@@ -188,38 +194,79 @@
 - Tabel: Foto | Nama | SKU | Kategori | Harga | Stok | Status | Aksi
 - Form tambah/edit: drawer / dialog
 
-### 4.3 `/reports`
+### 4.3 `/orders` — Riwayat Transaksi
+- Tabel: No. Order | Tanggal | Kasir | Total | Status | Aksi
+- Status badge: `COMPLETED` (hijau), `VOIDED` (merah)
+- Aksi (per row):
+  - [Detail] → sheet/modal showing order items + payment info
+  - [Cetak Ulang] → re-open Receipt component
+  - [Void] (admin only) → ConfirmDialog → PATCH /api/orders/:id `{ status: "VOIDED" }`
+- Void order row: opacity-50 + red badge "Dibatalkan"
+
+### 4.4 `/inventory` — Manajemen Stok
+- Tabel: Foto | Nama | SKU | Stok | Alert | Aksi
+- Alert: StockBadge (aman/hampir habis/habis)
+- Aksi:
+  - [Sesuaikan Stok] → modal dengan input ±qty + reason → POST /api/inventory/adjust
+
+### 4.5 `/reports`
 - KPI cards: Transaksi Hari Ini, Omset, Produk Terjual, Rata-rata Order
 - Bar chart: penjualan per hari (7/30 hari) — recharts / nivo
 - Tabel 10 produk terlaris
 
 ---
 
-## 5. Technical Design Decisions
+## 4.6 Empty States
+
+| View | Kondisi | Icon | Copy | CTA |
+|---|---|---|---|---|
+| Product Grid | Belum ada produk | 📦 | "Belum ada produk. Tambahkan produk pertama untuk mulai berjualan." | [+ Tambah Produk] |
+| Cart | Keranjang kosong | 🛒 | "Keranjang kosong. Pilih produk untuk memulai transaksi." | — |
+| Orders | Belum ada transaksi | 📝 | "Belum ada transaksi hari ini." | — |
+| Reports | Data kosong | 📊 | "Belum ada data untuk ditampilkan. Lakukan transaksi pertama." | — |
+| Inventory (stok habis) | Filter = habis, 0 result | ✅ | "Semua produk memiliki stok!" | — |
+
+### 4.7 Loading / Skeleton States
+
+| Komponen | Pattern |
+|---|---|
+| ProductGrid | 6 × ProductCard skeleton (gray placeholder + pulse animation) |
+| DataTable | 10 × row shimmer (3 kolom utama gray bars) |
+| KPI Card | Value → shimmer bar (60% width) |
+| Bar Chart | Gray placeholder bars dengan pulse |
+| Cart | Line-item shimmer saat item di-add (200ms) |
+
+---
+
+## 5. Technical Design Decisions (Revised)
 
 ### 5.1 Server Components vs Client Components
 | Komponen | Tipe | Alasan |
 |---|---|---|
 | Halaman `/orders`, `/products` | Server Component | Data fetching langsung tanpa `useEffect` |
-| `Cart`, `PaymentModal` | Client Component | Butuh state interaktif |
+| `Cart`, `PaymentModal`, `CartDrawer` (mobile) | Client Component | Butuh state interaktif + gestures |
 | `DataTable` | Client Component | Sort, filter, pagination client-side |
 | `Receipt` | Client Component | `window.print()` |
 
-### 5.2 Optimistic UI di Cart
+### 5.2 Discount (Removed from MVP)
+Fitur diskon di-hold untuk v1.1. MVP hanya menghitung subtotal → total tanpa diskon.
+Schema tetap memiliki kolom `discount_amount` (default 0) untuk kompatibilitas forward.
+
+### 5.3 Optimistic UI di Cart
 Ketika kasir menambah produk ke cart, state Zustand diupdate **segera** (optimistic).
 Tidak ada round-trip ke server saat membangun cart — hanya satu POST saat bayar.
 Ini membuat layar kasir terasa instan.
 
-### 5.3 Print Struk Tanpa Library Berat
+### 5.4 Print Struk Tanpa Library Berat
 `react-to-print` meng-inject CSS print media query untuk layout 58mm thermal.
 Tidak butuh server-side PDF generation di MVP.
 
-### 5.4 Responsif
+### 5.5 Responsif
 - Breakpoint: `sm` 640px, `md` 768px, `lg` 1024px, `xl` 1280px
 - Layar kasir (/pos) dioptimalkan untuk **tablet landscape** (kasir meja)
 - Dashboard produk/laporan dioptimalkan untuk **desktop**
 
-### 5.5 Aksesibilitas
+### 5.6 Aksesibilitas
 - Semua interactive element punya `aria-label`
 - Fokus keyboard navigable (Tab order logis)
 - Kontras warna minimum AA (WCAG 2.1)

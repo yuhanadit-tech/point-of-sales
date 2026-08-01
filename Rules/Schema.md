@@ -131,7 +131,7 @@ CREATE TABLE products (
 | Kolom | Tipe | Constraint | Keterangan |
 |---|---|---|---|
 | `id` | `UUID` | PK | |
-| `order_number` | `VARCHAR(20)` | NOT NULL, UNIQUE | Format: `ORD-YYYYMMDD-XXXX` |
+| `order_number` | `VARCHAR(20)` | NOT NULL, UNIQUE | Format: `ORD-YYYYMMDD-XXXX` (generated via DB sequence) |
 | `cashier_id` | `UUID` | FK → users.id, SET NULL | Kasir yang memproses |
 | `subtotal` | `NUMERIC(12,2)` | NOT NULL | Total sebelum diskon |
 | `discount_amount` | `NUMERIC(12,2)` | NOT NULL, DEFAULT 0 | Total diskon |
@@ -177,7 +177,7 @@ CREATE TABLE orders (
 ```sql
 CREATE TABLE order_items (
   id           UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id     UUID           NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  order_id     UUID           NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
   product_id   UUID           REFERENCES products(id) ON DELETE SET NULL,
   product_name VARCHAR(200)   NOT NULL,
   unit_price   NUMERIC(12,2)  NOT NULL,
@@ -188,6 +188,10 @@ CREATE TABLE order_items (
 
 > **Snapshot pattern:** `product_name` dan `unit_price` disalin ke `order_items` saat
 > checkout agar riwayat transaksi akurat meski harga produk berubah di masa depan.
+>
+> **ON DELETE RESTRICT:** Order bersifat immutable — jika ada upaya menghapus order,
+> constraint akan mencegahnya dan throw error. Ini lebih aman dari CASCADE yang menghapus
+> data historis secara silent.
 
 ---
 
@@ -245,6 +249,33 @@ CREATE TABLE audit_logs (
 
 ---
 
+### 2.8 `stock_adjustments`
+
+| Kolom | Tipe | Constraint | Keterangan |
+|---|---|---|---|
+| `id` | `UUID` | PK | |
+| `product_id` | `UUID` | FK → products.id, CASCADE | |
+| `user_id` | `UUID` | FK → users.id, SET NULL | Admin yang melakukan adjustment |
+| `delta` | `INTEGER` | NOT NULL | ±qty (positif = restock, negatif = koreksi berkurang) |
+| `reason` | `TEXT` | NOT NULL | Alasan adjustment (e.g., "Pembelian supplier", "Produk rusak") |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL, DEFAULT NOW() | |
+
+```sql
+CREATE TABLE stock_adjustments (
+  id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id UUID        NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  user_id    UUID        REFERENCES users(id) ON DELETE SET NULL,
+  delta      INTEGER     NOT NULL,
+  reason     TEXT        NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+> **Audit trail stok:** Setiap kali admin adjust stok, record tersimpan di sini.
+> `delta` positif = restock, negatif = pengurangan manual (rusak/expired/koreksi).
+
+---
+
 ## 3. Indexes
 
 ```sql
@@ -264,6 +295,10 @@ CREATE INDEX idx_products_is_active   ON products (is_active);
 -- Audit trail
 CREATE INDEX idx_audit_logs_entity    ON audit_logs (entity_type, entity_id);
 CREATE INDEX idx_audit_logs_user_id   ON audit_logs (user_id);
+
+-- Stock adjustment history
+CREATE INDEX idx_stock_adj_product_id ON stock_adjustments (product_id);
+CREATE INDEX idx_stock_adj_created_at ON stock_adjustments (created_at DESC);
 ```
 
 ---
@@ -290,7 +325,36 @@ CREATE TRIGGER trg_products_updated_at
 
 ---
 
-## 5. Prisma Schema (`prisma/schema.prisma`)
+## 5. Order Number Generation (Sequence-Based)
+
+```sql
+-- Sequence untuk counter harian
+CREATE SEQUENCE order_number_seq;
+
+-- Function untuk generate order_number
+CREATE OR REPLACE FUNCTION generate_order_number()
+RETURNS VARCHAR(20) AS $$
+DECLARE
+  date_prefix TEXT;
+  seq_num     TEXT;
+BEGIN
+  date_prefix := TO_CHAR(NOW(), 'YYYYMMDD');
+  seq_num     := LPAD(nextval('order_number_seq')::TEXT, 4, '0');
+  RETURN 'ORD-' || date_prefix || '-' || seq_num;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Gunakan sebagai default value (opsional, bisa juga di service layer)
+-- ALTER TABLE orders ALTER COLUMN order_number SET DEFAULT generate_order_number();
+```
+
+**Strategi:** `nextval()` dijamin unik per-database connection. Jika 2 request bersamaan,
+PostgreSQL lock sequence secara internal — tidak ada race condition. Counter tidak reset
+per hari di MVP (simple sequence global). Reset harian bisa ditambahkan di v1.1.
+
+---
+
+## 6. Prisma Schema (`prisma/schema.prisma`)
 
 ```prisma
 generator client {
@@ -303,16 +367,17 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  name         String    @db.VarChar(100)
-  email        String    @unique @db.VarChar(255)
-  passwordHash String    @db.VarChar(255)
-  role         UserRole  @default(CASHIER)
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  orders       Order[]
-  auditLogs    AuditLog[]
+  id               String            @id @default(uuid())
+  name             String            @db.VarChar(100)
+  email            String            @unique @db.VarChar(255)
+  passwordHash     String            @db.VarChar(255)
+  role             UserRole          @default(CASHIER)
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  orders           Order[]
+  auditLogs        AuditLog[]
+  stockAdjustments StockAdjustment[]
 }
 
 model Category {
@@ -324,21 +389,22 @@ model Category {
 }
 
 model Product {
-  id                String      @id @default(uuid())
-  categoryId        String?
-  category          Category?   @relation(fields: [categoryId], references: [id])
-  sku               String?     @unique @db.VarChar(50)
-  name              String      @db.VarChar(200)
-  description       String?
-  price             Decimal     @db.Decimal(12, 2)
-  costPrice         Decimal?    @db.Decimal(12, 2)
-  imageUrl          String?
-  stock             Int         @default(0)
-  lowStockThreshold Int         @default(5)
-  isActive          Boolean     @default(true)
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  orderItems        OrderItem[]
+  id               String            @id @default(uuid())
+  categoryId       String?
+  category         Category?         @relation(fields: [categoryId], references: [id])
+  sku              String?           @unique @db.VarChar(50)
+  name             String            @db.VarChar(200)
+  description      String?
+  price            Decimal           @db.Decimal(12, 2)
+  costPrice        Decimal?          @db.Decimal(12, 2)
+  imageUrl         String?
+  stock            Int               @default(0)
+  lowStockThreshold Int              @default(5)
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  orderItems       OrderItem[]
+  stockAdjustments StockAdjustment[]
 }
 
 model Order {
@@ -359,13 +425,24 @@ model Order {
 model OrderItem {
   id          String   @id @default(uuid())
   orderId     String
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
   productId   String?
   product     Product? @relation(fields: [productId], references: [id])
   productName String   @db.VarChar(200)
   unitPrice   Decimal  @db.Decimal(12, 2)
   quantity    Int
   subtotal    Decimal  @db.Decimal(12, 2)
+}
+
+model StockAdjustment {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  delta     Int
+  reason    String
+  createdAt DateTime @default(now())
 }
 
 model Payment {
@@ -410,7 +487,7 @@ enum PaymentMethod {
 
 ---
 
-## 6. Catatan & Keputusan
+## 7. Catatan & Keputusan
 
 | Keputusan | Alasan |
 |---|---|
@@ -420,3 +497,6 @@ enum PaymentMethod {
 | Tidak ada `deleted_at` di `orders` | Order bersifat immutable; hanya bisa VOIDED |
 | `JSONB` di `audit_logs.metadata` | Fleksibel untuk menyimpan old/new value tanpa schema kaku |
 | `stock CHECK >= 0` di DB | Defense-in-depth: validasi berlapis (service + DB constraint) |
+| `ON DELETE RESTRICT` di order_items | Mencegah silent delete order + items; fail loudly jika dicoba |
+| `stock_adjustments` table | Audit trail untuk setiap restock / koreksi manual |
+| Sequence-based order_number | Menghindari race condition; PostgreSQL lock sequence internal |

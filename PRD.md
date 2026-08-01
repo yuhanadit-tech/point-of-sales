@@ -40,11 +40,13 @@ secara real-time.
 | F-10 | Peringatan stok rendah (alert di dashboard) |
 | F-11 | Laporan harian: total transaksi, omset, produk terjual |
 | F-12 | Role-based access: **Admin** vs **Kasir** |
+| F-13 | Stock adjustment (restock / koreksi stok manual) oleh admin |
 
 ### 2.2 Luar Scope MVP (Future Release)
 
 | Fitur | Release Target |
 |---|---|
+| Diskon per transaksi (%, flat, atau kupon) | v1.1 |
 | Integrasi payment gateway (Midtrans/Xendit) | v1.1 |
 | Multi-outlet / multi-cabang | v1.2 |
 | Loyalty points & member card | v1.2 |
@@ -163,6 +165,18 @@ US-08: Sebagai owner, saya ingin melihat total omset dan jumlah transaksi
 
 US-09: Sebagai owner, saya ingin export laporan transaksi ke CSV untuk
        keperluan pembukuan.
+
+US-10: Sebagai kasir, saya ingin mencetak ulang struk dari riwayat
+       transaksi jika pelanggan kehilangan struk asli.
+```
+
+### Epic: Inventory (Admin)
+```
+US-11: Sebagai admin, saya ingin menambah stok produk (restock) dengan
+       mencatat alasan (e.g., "Pembelian dari supplier").
+
+US-12: Sebagai admin, saya ingin mengurangi stok secara manual untuk
+       koreksi (e.g., produk rusak, expired) dengan alasan.
 ```
 
 ---
@@ -182,6 +196,14 @@ US-09: Sebagai owner, saya ingin export laporan transaksi ke CSV untuk
 - [ ] Admin bisa akses semua halaman termasuk `/products`, `/inventory`, `/reports`
 - [ ] Akses langsung ke URL yang tidak diizinkan → redirect ke `/pos` atau `/login`
 
+### F-13: Stock Adjustment
+- [ ] Admin dapat akses halaman `/inventory`
+- [ ] Klik [Sesuaikan Stok] pada produk tertentu
+- [ ] Modal muncul dengan input: +/- qty, reason (text, required)
+- [ ] Submit → POST /api/inventory/adjust
+- [ ] Backend mencatat adjustment di tabel `stock_adjustments` + update `products.stock`
+- [ ] Adjustment tercatat di audit log
+
 ---
 
 ## 7. Milestones & Timeline (8 Minggu)
@@ -189,10 +211,13 @@ US-09: Sebagai owner, saya ingin export laporan transaksi ke CSV untuk
 | Minggu | Deliverable |
 |---|---|
 | 1 | Setup project, DB schema, auth (login/logout), layout dasar |
-| 2 | CRUD produk + upload foto |
+| 2 | CRUD produk + upload foto (R2 presigned URL) |
 | 3 | Layar POS: grid produk + cart (F-02, F-03) |
 | 4 | Proses pembayaran + struk + decrement stok (F-04–F-06) |
-| 5 | Riwayat transaksi + manajemen stok (F-07, F-08, F-09) |
-| 6 | Laporan harian + alert stok (F-10, F-11) |
-| 7 | QA, bug fix, polish UI, usability test |
-| 8 | Deploy production, monitoring setup, dokumentasi |
+| 5 | Riwayat transaksi + stock adjustment (F-07, F-13) |
+| 6 | Laporan harian + alert stok + void order (F-10, F-11) |
+| 7 | QA + bug fix (critical path: checkout, auth, stock) |
+| 8 | Usability test + polish UI (empty states, mobile cart) |
+| 9 | Deploy production, monitoring setup, dokumentasi |
+
+**Buffer:** Minggu 9 adalah buffer — jika Minggu 3–6 on track, deploy bisa dimajukan ke Minggu 8.

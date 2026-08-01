@@ -68,17 +68,20 @@ import { withAuth } from '@/lib/auth'
 import { createProductSchema } from '@/lib/validations/product.schema'
 import { ProductService } from '@/services/product.service'
 
-export const POST = withAuth(async (req: NextRequest) => {
-  const body = await req.json()
-  const parsed = createProductSchema.safeParse(body)
+export const POST = withAuth(
+  async (req: NextRequest) => {
+    const body = await req.json()
+    const parsed = createProductSchema.safeParse(body)
 
-  if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
-  }
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
+    }
 
-  const product = await ProductService.create(parsed.data)
-  return NextResponse.json(product, { status: 201 })
-})
+    const product = await ProductService.create(parsed.data)
+    return NextResponse.json(product, { status: 201 })
+  },
+  { roles: ['ADMIN'] } // hanya admin yang bisa create product
+)
 ```
 
 ### 4.3 Service Layer
@@ -196,7 +199,85 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 ---
 
-## 9. Testing
+## 9. Authentication & Authorization (withAuth)
+
+### 9.1 `withAuth()` Middleware Contract
+
+**Location:** `lib/auth.ts`
+
+**Signature:**
+```typescript
+withAuth(
+  handler: (req: NextRequestWithUser) => Promise<NextResponse>,
+  options?: { roles?: UserRole[] }
+)
+```
+
+**Behavior:**
+1. Extract session dari cookie via NextAuth `getServerSession()`
+2. Jika tidak ada session → return `401 Unauthorized`
+3. Jika `options.roles` di-specify dan user role tidak match → return `403 Forbidden`
+4. Inject `req.user` dengan shape `{ id: string, email: string, role: UserRole }`
+5. Call handler dengan req yang sudah ter-augment
+
+**Contoh:**
+```typescript
+// Hanya admin
+export const DELETE = withAuth(
+  async (req) => {
+    const { id } = req.user // type-safe
+    // ...
+  },
+  { roles: ['ADMIN'] }
+)
+
+// Semua authenticated user
+export const GET = withAuth(async (req) => {
+  // req.user tersedia
+})
+```
+
+**Type augmentation:**
+```typescript
+// lib/auth.ts
+import { NextRequest } from 'next/server'
+
+export interface NextRequestWithUser extends NextRequest {
+  user: {
+    id: string
+    email: string
+    role: 'ADMIN' | 'CASHIER'
+  }
+}
+```
+
+---
+
+## 10. Environment Variables
+
+Semua secret disimpan di `.env` (local) atau environment variable di hosting (Vercel).
+
+**Required variables:**
+
+| Variable | Contoh | Keterangan |
+|---|---|---|
+| `DATABASE_URL` | `postgresql://user:pass@host:5432/db` | Supabase connection string |
+| `NEXTAUTH_SECRET` | `openssl rand -base64 32` | JWT signing key (32+ char random) |
+| `NEXTAUTH_URL` | `http://localhost:3000` | Base URL (prod: `https://pos.example.com`) |
+| `R2_ACCOUNT_ID` | `abc123...` | Cloudflare R2 account ID |
+| `R2_ACCESS_KEY_ID` | `xxx` | R2 access key |
+| `R2_SECRET_ACCESS_KEY` | `yyy` | R2 secret |
+| `R2_BUCKET_NAME` | `pos-mvp-uploads` | Bucket name |
+| `R2_PUBLIC_URL` | `https://pub-xxx.r2.dev` | Public CDN URL for uploaded files |
+
+**Setup:**
+1. Copy `.env.example` → `.env`
+2. Fill semua variable dengan value dari Supabase dashboard (DB) dan Cloudflare R2 (storage)
+3. Jangan commit `.env` (sudah di `.gitignore`)
+
+---
+
+## 11. Testing
 
 | Level | Tool | Target Coverage |
 |---|---|---|
@@ -212,7 +293,7 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
 ---
 
-## 10. Git & Commit Convention
+## 12. Git & Commit Convention
 
 ### Branch Naming
 ```
@@ -238,7 +319,26 @@ test(order): add unit tests for OrderService.create
 
 ---
 
-## 11. Batasan untuk AI / Kontributor Otomatis
+## 13. Production Migration Runbook
+
+Saat apply migration ke production database:
+
+1. **Backup database** — ambil snapshot via Supabase dashboard atau `pg_dump`
+2. **Dry-run lokal** — test migration di DB lokal yang di-seed dengan production-like data
+3. **Check status** — `pnpm prisma migrate status` di production env
+4. **Apply** — `pnpm prisma migrate deploy` (ini auto-apply pending migrations)
+5. **Smoke test** — hit critical API routes (login, create order, check stock)
+6. **Rollback plan** — jika gagal:
+   - Restore snapshot DB
+   - Revert commit yang menambahkan migration
+   - Re-deploy versi sebelumnya
+
+**NEVER** run `prisma migrate dev` di production — itu generate migration baru.
+Gunakan `prisma migrate deploy` untuk apply migration yang sudah ter-commit.
+
+---
+
+## 14. Batasan untuk AI / Kontributor Otomatis
 
 Jika Anda adalah AI atau tools otomatis yang berkontribusi ke repo ini, patuhi aturan
 berikut:
@@ -264,7 +364,7 @@ berikut:
 
 ---
 
-## 12. Checklist Sebelum Merge
+## 15. Checklist Sebelum Merge
 
 - [ ] Kode di-format dengan Prettier (`pnpm format`)
 - [ ] Tidak ada error ESLint (`pnpm lint`)
