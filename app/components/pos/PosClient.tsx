@@ -3,7 +3,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ProductGrid } from '@/components/pos/ProductGrid'
 import { CartPanel } from '@/components/pos/CartPanel'
+import { PaymentModal } from '@/components/pos/PaymentModal'
+import { Receipt } from '@/components/pos/Receipt'
 import { useCartStore } from '@/stores/cart.store'
+import type { ReceiptData } from '@/components/pos/Receipt'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,7 +27,7 @@ interface PosProduct {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function PosClient() {
+export function PosClient({ cashierName }: { cashierName: string }) {
   const [products, setProducts] = useState<PosProduct[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,6 +37,10 @@ export function PosClient() {
   // Mobile: show cart panel as bottom drawer
   const [cartOpen, setCartOpen] = useState(false)
   const totalItems = useCartStore((s) => s.totalItems)
+
+  // Payment & receipt modals
+  const [paymentOpen, setPaymentOpen] = useState(false)
+  const [receipt, setReceipt] = useState<ReceiptData | null>(null)
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchProducts = useCallback(async () => {
@@ -58,10 +65,17 @@ export function PosClient() {
     return () => clearTimeout(t)
   }, [fetchProducts])
 
-  // ─── placeholder checkout (T-07) ─────────────────────────────────────────
+  // ── Checkout → open payment modal ─────────────────────────────────────────
   function handleCheckout() {
-    // PaymentModal wired in T-07
-    alert('Payment modal coming in T-07')
+    setCartOpen(false)
+    setPaymentOpen(true)
+  }
+
+  function handlePaymentSuccess(data: ReceiptData) {
+    setPaymentOpen(false)
+    setReceipt(data)
+    // Refresh product list so stock counts update
+    void fetchProducts()
   }
 
   // ── Layout ─────────────────────────────────────────────────────────────────
@@ -94,6 +108,23 @@ export function PosClient() {
         </div>
       </div>
 
+      {/* ── Payment modal ── */}
+      {paymentOpen && (
+        <PaymentModal
+          cashierName={cashierName}
+          onSuccess={handlePaymentSuccess}
+          onClose={() => setPaymentOpen(false)}
+        />
+      )}
+
+      {/* ── Receipt modal ── */}
+      {receipt && (
+        <Receipt
+          data={receipt}
+          onClose={() => setReceipt(null)}
+        />
+      )}
+
       {/* ── Mobile: FAB cart button ── */}
       <div className="lg:hidden fixed bottom-6 right-6 z-30">
         <button
@@ -122,8 +153,10 @@ export function PosClient() {
       {cartOpen && (
         <div className="lg:hidden fixed inset-0 z-40 flex flex-col justify-end">
           {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/40"
+          <button
+            aria-label="Close cart"
+            className="absolute inset-0"
+            style={{ backgroundColor: 'rgba(0,0,0,0.4)', border: 'none', cursor: 'default' }}
             onClick={() => setCartOpen(false)}
           />
           {/* Drawer */}

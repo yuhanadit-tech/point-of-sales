@@ -9,6 +9,8 @@ export default async function PosPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
+  const cashierName = session.user.name ?? session.user.email ?? 'Cashier'
+
   return (
     // Fill the remaining viewport height (dashboard layout already sets min-h-screen via sidebar)
     <div className="flex flex-col" style={{ height: '100%', minHeight: '100vh' }}>
@@ -24,7 +26,7 @@ export default async function PosPage() {
 
       {/* ── POS layout (flex-1 so it fills remaining height) ── */}
       <div className="flex-1 overflow-hidden">
-        <PosClient />
+        <PosClient cashierName={cashierName} />
       </div>
     </div>
   )
