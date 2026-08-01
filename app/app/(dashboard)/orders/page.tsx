@@ -1,8 +1,14 @@
 import type { Metadata } from 'next'
+import { auth } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import { OrdersClient } from '@/components/orders/OrdersClient'
 
 export const metadata: Metadata = { title: 'Orders — POS MVP' }
 
-export default function OrdersPage() {
+export default async function OrdersPage() {
+  const session = await auth()
+  if (!session) redirect('/login')
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -13,14 +19,7 @@ export default function OrdersPage() {
           Transaction history
         </p>
       </div>
-      <div
-        className="rounded-xl border-2 border-dashed flex items-center justify-center h-80"
-        style={{ borderColor: 'var(--color-border)' }}
-      >
-        <p style={{ color: 'var(--color-muted)' }} className="text-sm">
-          Orders — coming in T-08
-        </p>
-      </div>
+      <OrdersClient userRole={session.user.role as 'ADMIN' | 'CASHIER'} />
     </div>
   )
 }
