@@ -1,8 +1,14 @@
 import type { Metadata } from 'next'
+import { auth } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import { ReportsClient } from '@/components/reports/ReportsClient'
 
 export const metadata: Metadata = { title: 'Reports — POS MVP' }
 
-export default function ReportsPage() {
+export default async function ReportsPage() {
+  const session = await auth()
+  if (!session) redirect('/login')
+
   return (
     <div className="p-6">
       <div className="mb-6">
@@ -10,17 +16,10 @@ export default function ReportsPage() {
           Reports
         </h1>
         <p className="text-sm mt-1" style={{ color: 'var(--color-muted)' }}>
-          Sales analytics and daily summary
+          Sales analytics and performance
         </p>
       </div>
-      <div
-        className="rounded-xl border-2 border-dashed flex items-center justify-center h-80"
-        style={{ borderColor: 'var(--color-border)' }}
-      >
-        <p style={{ color: 'var(--color-muted)' }} className="text-sm">
-          Reports — coming in T-10
-        </p>
-      </div>
+      <ReportsClient />
     </div>
   )
 }
