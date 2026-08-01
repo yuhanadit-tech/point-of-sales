@@ -5,9 +5,42 @@ import { createOrderSchema } from '@/lib/validations/order.schema'
 import { generateOrderNumber } from '@/lib/utils'
 import type { NextRequestWithUser } from '@/lib/auth'
 
+// ── Optional rate limiter (Upstash) ──────────────────────────────────────────
+// Gracefully disabled when UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN
+// env vars are not set (local development).
+
+async function checkRateLimit(userId: string): Promise<boolean> {
+  const url = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+
+  if (!url || !token) return true // rate-limiting disabled
+
+  try {
+    const { Ratelimit } = await import('@upstash/ratelimit')
+    const { Redis } = await import('@upstash/redis')
+
+    const ratelimit = new Ratelimit({
+      redis: new Redis({ url, token }),
+      limiter: Ratelimit.fixedWindow(10, '1 m'), // 10 checkouts per user per minute
+      prefix: 'pos:checkout',
+    })
+
+    const { success } = await ratelimit.limit(userId)
+    return success
+  } catch {
+    return true // fail open — never block a valid checkout due to Redis issues
+  }
+}
+
 // POST /api/orders
 // Atomic checkout: validate cart, guard stock, create order+items+payment, decrement stock
 export const POST = withAuth(async (req: NextRequestWithUser) => {
+  // Rate limit check
+  const allowed = await checkRateLimit(req.user.id)
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many requests. Please wait before trying again.' }, { status: 429 })
+  }
+
   const body = await req.json()
   const parsed = createOrderSchema.safeParse(body)
 
