@@ -83,6 +83,7 @@ export interface NextRequestWithUser extends NextRequest {
 
 type RouteHandler = (
   req: NextRequestWithUser,
+  // Must stay as Record<string,string> to accept any dynamic route params
   context?: { params: Promise<Record<string, string>> },
 ) => Promise<NextResponse>
 
